@@ -22,11 +22,11 @@ function DataSource() {
 /**
  * http
  *
- * @param  {string} path   [description]
- * @param  {Object} params [description]
+ * @param  {string} uri   [description]
+ * @param  {Object} options [description]
  * @return {Function}        [description]
  */
-DataSource.prototype.http = function(path, params) {
+DataSource.prototype.http = function(uri, options) {
 
     var request = this.request;
 
@@ -36,7 +36,7 @@ DataSource.prototype.http = function(path, params) {
                 qs: req.query,
                 headers: req.headers
             },
-            params
+            options
         );
 
         // 删除 host\referer
@@ -44,13 +44,17 @@ DataSource.prototype.http = function(path, params) {
         delete reqOpts.headers.host;
         delete reqOpts.headers.referer;
 
-        // var bereq =
-        request(
-            path,
+        var bereq = request(
+            uri,
             reqOpts,
-            // todo 更科学的 输出
-            // 这里 直接输出json
-            // 但是 没有 同步 后端的cookie 等信息
+            /**
+             * [callback description]
+             *
+             * @param  {[type]}   error    [description]
+             * @param  {[type]}   response [description]
+             * @param  {[type]}   body     [description]
+             * @return {Function}          [description]
+             */
             function callback(error, response, body) {
 
                 /**
@@ -79,16 +83,25 @@ DataSource.prototype.http = function(path, params) {
                     returnData.statusInfo = 'api 请求失败' + error;
                 }
 
+                // todo 分析是否全覆盖headers
+                delete response.headers.server;
+                delete response.headers['x-powered-by'];
+
+                // 写入 header
+                res.set(response.headers);
+
                 res.data = returnData;
 
                 next();
             }
         );
 
+
+        req.pipe(bereq);
+
         // todo 更科学的 输出
         // 如果直接 pipe
         // node server的下一个中间件可能就不会被执行了
-        // req.pipe(bereq);
         // bereq.pipe(res);
 
     };
