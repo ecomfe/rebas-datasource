@@ -10,11 +10,14 @@ var extend = require('xtend');
 
 /**
  * DataSource
+ *
+ * @class
+ * @constructor
  */
 function DataSource() {
     this.request = request.defaults({
         headers: {
-            'x-req-by': 'rebas'
+            'x-powered-by': 'rebas'
         }
     });
 }
@@ -22,9 +25,8 @@ function DataSource() {
 /**
  * http
  *
- * @param  {string} uri   [description]
- * @param  {Object} options [description]
- * @return {Function}        [description]
+ * @param  {string} uri   api地址
+ * @param  {Object} options  request配置
  */
 DataSource.prototype.http = function(uri, options) {
 
@@ -44,18 +46,17 @@ DataSource.prototype.http = function(uri, options) {
         delete reqOpts.headers.host;
         delete reqOpts.headers.referer;
 
-        var bereq = request(
+        var apiReq = request(
             uri,
             reqOpts,
             /**
-             * [callback description]
+             * api res callback
              *
-             * @param  {[type]}   error    [description]
-             * @param  {[type]}   response [description]
-             * @param  {[type]}   body     [description]
-             * @return {Function}          [description]
+             * @param  {String}   error    错误信息
+             * @param  {Object}   apiRes
+             * @param  {String}   body
              */
-            function callback(error, response, body) {
+            function callback(error, apiRes, body) {
 
                 /**
                  * 默认返回
@@ -67,7 +68,7 @@ DataSource.prototype.http = function(uri, options) {
                 };
 
                 // 数据成功返回
-                if (!error && response.statusCode === 200) {
+                if (!error && apiRes.statusCode === 200) {
 
                     // 解析 JSON
                     try {
@@ -79,16 +80,16 @@ DataSource.prototype.http = function(uri, options) {
 
                 }
                 else {
-                    returnData.status = response.statusCode;
+                    returnData.status = apiRes.statusCode;
                     returnData.statusInfo = 'api 请求失败' + error;
                 }
 
-                // todo 分析是否全覆盖headers
-                delete response.headers.server;
-                delete response.headers['x-powered-by'];
+                // 去掉 一些header
+                delete apiRes.headers.server;
+                delete apiRes.headers['x-powered-by'];
 
-                // 写入 header
-                res.set(response.headers);
+                // 写入 res header
+                res.set(apiRes.headers);
 
                 res.data = returnData;
 
@@ -96,13 +97,13 @@ DataSource.prototype.http = function(uri, options) {
             }
         );
 
-
-        req.pipe(bereq);
+        // pipe req into apiReq
+        req.pipe(apiReq);
 
         // todo 更科学的 输出
         // 如果直接 pipe
         // node server的下一个中间件可能就不会被执行了
-        // bereq.pipe(res);
+        // apiReq.pipe(res);
 
     };
 
@@ -114,6 +115,8 @@ DataSource.prototype.http = function(uri, options) {
  * @return {Function}
  */
 DataSource.prototype.merge = function(opts) {
+
+
 
     return function (req, res, next){
 
