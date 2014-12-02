@@ -67,13 +67,55 @@ DataSource.prototype.http = function(uri, options) {
         }
 
         /**
+         * reqOpts
+         *
+         * @type {Object}
+         */
+        var reqOpts = extend({
+                qs: req.query,
+                headers: req.headers
+            },
+            options
+        );
+
+        // 删除 host\referer
+        // 后端有可能拒绝
+        defaultOptions.ignoreRequestHeaders.forEach(function(key) {
+            delete reqOpts.headers[key];
+        });
+
+        // 发起请求
+        var apiReq = request(uri, reqOpts, options.pipe ? noop : apiReqCb);
+
+        // pipe req into apiReq
+        req.pipe(apiReq);
+
+        // rewrite res header
+        apiReq.on('response', function(apiRes) {
+
+            // 去掉 一些header
+            defaultOptions.ignoreResponseHeaders.forEach(function(key) {
+                delete apiRes.headers[key];
+            });
+
+            // 写入 res header
+            res.set(apiRes.headers);
+
+        });
+
+        // 直接 pipe
+        if (options.pipe) {
+            apiReq.pipe(res);
+        }
+
+        /**
          * api res callback
          *
          * @param  {String}   error    错误信息
          * @param  {Object}   apiRes
          * @param  {String}   body
          */
-        function callback(error, apiRes, body) {
+        function apiReqCb(error, apiRes, body) {
 
             /**
              * 默认返回
@@ -96,61 +138,19 @@ DataSource.prototype.http = function(uri, options) {
                 }
                 catch (e) {
 
-                    ejson.statusInfo = 'api 返回数据不可解析: ' + e;
+                    ejson.statusInfo = 'parse json fail: ' + e;
 
                 }
 
             }
             else {
                 ejson.status = apiRes.statusCode;
-                ejson.statusInfo = 'api 请求失败' + error;
+                ejson.statusInfo = 'request fail: ' + error;
             }
 
             res.data = ejson;
 
             next();
-        }
-
-        /**
-         * reqOpts
-         *
-         * @type {Object}
-         */
-        var reqOpts = extend({
-                qs: req.query,
-                headers: req.headers
-            },
-            options
-        );
-
-        // 删除 host\referer
-        // 后端有可能拒绝
-        defaultOptions.ignoreRequestHeaders.forEach(function(key) {
-            delete reqOpts.headers[key];
-        });
-
-        // 发起请求
-        var apiReq = request(uri, reqOpts, options.pipe ? noop : callback);
-
-        // pipe req into apiReq
-        req.pipe(apiReq);
-
-        // rewrite res header
-        apiReq.on('response', function(apiRes) {
-
-            // 去掉 一些header
-            defaultOptions.ignoreResponseHeaders.forEach(function(key) {
-                delete apiRes.headers[key];
-            });
-
-            // 写入 res header
-            res.set(apiRes.headers);
-
-        });
-
-        // 直接 pipe
-        if (options.pipe) {
-            apiReq.pipe(res);
         }
 
     };
