@@ -12,7 +12,12 @@ var NEW_FEED_URL = 'http://startupnews.duapp.com/feed/newest';
 // index
 app.get('/', function(req, res) {
 
-    var html = ['http', 'http/pipe', 'merge'].map(
+    var html = [
+            'http',
+            'http/pipe',
+            'http/pipeType',
+            'merge'
+        ].map(
             function(api) {
                 return '<a href="/{api}">{api}</a>'.replace(/{api}/g, api);
             })
@@ -40,16 +45,15 @@ app.get(
 );
 
 // http/pipeType
-// app.get(
-//     '/http/pipeType',
-//     function() {
-//         return function(req, res, next) {
-//             res.type('pipe');
-//             next();
-//         };
-//     },
-//     datasource.http(HOT_FEED_URL)
-// );
+app.get(
+    '/http/pipeType',
+    function(req, res, next) {
+        // res.type('pipe');
+        res.ctype = 'pipe';
+        next();
+    },
+    datasource.http(HOT_FEED_URL)
+);
 
 // merge
 app.get(

@@ -28,13 +28,27 @@ function DataSource() {
 }
 
 /**
+ * defaultOptions
+ *
+ * @type {Object}
+ */
+DataSource.defaultOptions = {
+    http: {
+        ignoreRequestHeaders: ['host', 'referer', 'accept-encoding'],
+        ignoreResponseHeaders: ['server', 'etag', 'x-powered-by']
+    }
+};
+
+
+/**
  * http
  *
- * @param  {string} uri   api地址
- * @param  {Object} options  request配置
- * @param  {Object} options.header  request.header
- * @param  {Object} options.qs  request.query
- * @param  {boolean} options.pipe  request.pipe
+ * @param  {string}     uri             api地址
+ * @param  {Object}     options         request配置
+ * @param  {Object}     options.headers request.headers
+ * @param  {Object}     options.qs      request.query
+ * @param  {boolean}    options.pipe    request.pipe
+ *
  * @return {Function}
  */
 DataSource.prototype.http = function(uri, options) {
@@ -43,12 +57,14 @@ DataSource.prototype.http = function(uri, options) {
 
     var request = this.request;
 
+    var defaultOptions = DataSource.defaultOptions.http;
+
     return function(req, res, next) {
 
         // pipe 类型 不做数据处理 直接输出
-        // if (res.type() === 'pipe') {
-        //     options.pipe = true;
-        // }
+        if (res.ctype === 'pipe') {
+            options.pipe = true;
+        }
 
         /**
          * api res callback
@@ -64,7 +80,7 @@ DataSource.prototype.http = function(uri, options) {
              *
              * @type {Object}
              */
-            var returnData = {
+            var ejson = {
                 status: -1
             };
 
@@ -75,30 +91,22 @@ DataSource.prototype.http = function(uri, options) {
                 // todo 配置 是否解析
                 try {
 
-                    returnData = JSON.parse(body);
+                    ejson = JSON.parse(body);
 
-                } catch (e) {
+                }
+                catch (e) {
 
-                    returnData.statusInfo = 'api 返回数据不可解析: ' + e;
+                    ejson.statusInfo = 'api 返回数据不可解析: ' + e;
 
                 }
 
             }
             else {
-                returnData.status = apiRes.statusCode;
-                returnData.statusInfo = 'api 请求失败' + error;
+                ejson.status = apiRes.statusCode;
+                ejson.statusInfo = 'api 请求失败' + error;
             }
 
-            // 去掉 一些header
-            // todo 可配置
-            delete apiRes.headers.server;
-            delete apiRes.headers.etag;
-            delete apiRes.headers['x-powered-by'];
-
-            // 写入 res header
-            res.set(apiRes.headers);
-
-            res.data = returnData;
+            res.data = ejson;
 
             next();
         }
@@ -117,16 +125,28 @@ DataSource.prototype.http = function(uri, options) {
 
         // 删除 host\referer
         // 后端有可能拒绝
-        // todo 可配置
-        delete reqOpts.headers.host;
-        delete reqOpts.headers.referer;
-        delete reqOpts.headers['accept-encoding'];
+        defaultOptions.ignoreRequestHeaders.forEach(function(key) {
+            delete reqOpts.headers[key];
+        });
 
         // 发起请求
         var apiReq = request(uri, reqOpts, options.pipe ? noop : callback);
 
         // pipe req into apiReq
         req.pipe(apiReq);
+
+        // rewrite res header
+        apiReq.on('response', function(apiRes) {
+
+            // 去掉 一些header
+            defaultOptions.ignoreResponseHeaders.forEach(function(key) {
+                delete apiRes.headers[key];
+            });
+
+            // 写入 res header
+            res.set(apiRes.headers);
+
+        });
 
         // 直接 pipe
         if (options.pipe) {
@@ -136,7 +156,6 @@ DataSource.prototype.http = function(uri, options) {
     };
 
 };
-
 
 /**
  * 合并数据
